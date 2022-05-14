@@ -16,7 +16,7 @@ public class NetworkMessage
     public enum MessageType
     {
         Hi,
-        Shake,
+        SendData,
         Hit,
         Miss,
         Die,
@@ -25,6 +25,7 @@ public class NetworkMessage
     public MessageType messageType;
     public string senderName;
     public Guid guid = Guid.NewGuid();
-    public string message;
+    public long triggerFiletime;
+    public KeyCode triggerKey;
 }
 

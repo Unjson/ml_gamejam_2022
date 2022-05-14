@@ -7,9 +7,10 @@ public class GameController : MonoBehaviour
 {
     public enum GameState
     {
+        Searching,
         Waiting,
         Ready,
-        Listening,
+        Shoot,
         Conclusion
     }
     [SerializeField]
@@ -28,10 +29,12 @@ public class GameController : MonoBehaviour
     }
 
     private Coroutine _waitingCR = null;
+    public Coroutine _duelCR = null;
 
     [SerializeField]
     private NetworkInformation _networkInformation;
-    public string OpponentName => _networkInformation.enemyName; 
+    public string MyName => _networkInformation.myName;
+    public string OpponentName => _networkInformation.enemyName;
 
     [SerializeField]
     private NetworkEvent _sendEvent = null, _receiveEvent = null;
@@ -39,11 +42,17 @@ public class GameController : MonoBehaviour
     [SerializeField]
     private CanvasController _canvasController = null;
 
+    [SerializeField]
+    private List<KeyCode> _validKeyCodes = new List<KeyCode>();
+
     private bool isMaster = false;
+
+    private KeyCode _triggerKey = KeyCode.None;
+    private long _triggerTime = long.MaxValue;
 
     private void Start()
     {
-        State = GameState.Waiting;
+        State = GameState.Searching;
         _receiveEvent.Add(OnRecieved);
         
         _waitingCR = StartCoroutine(WaitForOpponent());
@@ -54,10 +63,25 @@ public class GameController : MonoBehaviour
         switch (msg.messageType)
         {
             case NetworkMessage.MessageType.Hi:
-            case NetworkMessage.MessageType.Shake:
                 OnHandshakeRecieved(msg);
                 break;
+            case NetworkMessage.MessageType.SendData:
+                OnDuelDataRecieved(msg);
+                break;
         }
+    }
+
+    private void OnDuelDataRecieved(NetworkMessage msg)
+    {
+        if(_duelCR != null)
+        {
+            StopCoroutine(_duelCR);
+        }
+
+        State = GameState.Ready;
+        _triggerKey = msg.triggerKey;
+        _triggerTime = msg.triggerFiletime;
+        _duelCR = StartCoroutine(PrepareDuel());
     }
 
     private void OnHandshakeRecieved(NetworkMessage msg)
@@ -66,16 +90,35 @@ public class GameController : MonoBehaviour
         {
             StopCoroutine(_waitingCR);
         }
+        if (State != GameState.Searching) return;
+
+        State = GameState.Waiting;
 
         _networkInformation.enemyName = msg.senderName;
 
         var shake = new NetworkMessage();
-        msg.messageType = NetworkMessage.MessageType.Shake;
+        msg.messageType = NetworkMessage.MessageType.Hi;
         _sendEvent.Raise(shake);
 
         DetermineMasterPlayer();
 
-        State = GameState.Ready;
+        if (isMaster)
+        {
+            ChooseNewDuel();
+        }
+    }
+
+    private void ChooseNewDuel()
+    {
+        var msg = new NetworkMessage();
+
+        var inSeconds = UnityEngine.Random.Range(3f, 10f);
+        var randPos = UnityEngine.Random.Range(0, _validKeyCodes.Count);
+        msg.triggerFiletime = DateTime.Now.AddSeconds(inSeconds).ToFileTime();
+        msg.triggerKey = _validKeyCodes[randPos];
+
+        _sendEvent.Raise(msg);
+        _receiveEvent.Raise(msg);
     }
 
     private void OnStateChanged()
@@ -89,17 +132,24 @@ public class GameController : MonoBehaviour
         msg.messageType = NetworkMessage.MessageType.Hi;
         while (true)
         {
-            if(State != GameState.Waiting) { yield break; }
-
+            if(State != GameState.Searching) break; 
             _sendEvent.Raise(msg);
+
             yield return new WaitForSeconds(1);
         }
     }
 
     private void DetermineMasterPlayer()
     {
-        var myHash = _networkInformation.myName.GetHashCode();
-        var theirHash = _networkInformation.enemyName.GetHashCode();
-        isMaster = myHash > theirHash;
+        isMaster = MyName.GetHashCode() >= OpponentName.GetHashCode();
+    }
+
+    private IEnumerator PrepareDuel()
+    {
+        while(DateTime.Now.ToFileTime() < _triggerTime)
+        {
+            yield return new WaitForEndOfFrame();
+        }
+        State = GameState.Shoot;
     }
 }
