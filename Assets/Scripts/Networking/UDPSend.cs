@@ -20,9 +20,6 @@ public class UDPSend : MonoBehaviour
     // init
     public void Init()
     {
-        // ----------------------------
-        // Senden
-        // ----------------------------
         remoteEndPoint = new IPEndPoint(IPAddress.Parse(ip), port);
         client = new UdpClient();
     }

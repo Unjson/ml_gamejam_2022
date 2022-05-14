@@ -6,60 +6,60 @@ using System.Text;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
- 
+
 public class UDPReceive : MonoBehaviour
 {
-    Thread receiveThread;
-    UdpClient client;
+    NetworkService service;
+    UdpClient clientData;
+    public int port = 8008;
+    public int receiveBufferSize = 120000;
 
-    public int port; // define > init
+    [SerializeField]
+    private bool showDebug = false;
+    IPEndPoint ipEndPointData;
+    private object obj = null;
+    private System.AsyncCallback AC;
+    byte[] receivedBytes;
 
-    // infos
-    public string lastReceivedUDPPacket = "";
+    private void Start()
+    {
+        service = GetComponentInParent<NetworkService>();
+    }
 
-
-    // init
     public void Init()
     {
-        receiveThread = new Thread(new ThreadStart(ReceiveData));
-        receiveThread.IsBackground = true;
-        receiveThread.Start();
+        ipEndPointData = new IPEndPoint(IPAddress.Any, port);
+        clientData = new UdpClient();
+        clientData.Client.ReceiveBufferSize = receiveBufferSize;
+        clientData.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, optionValue: true);
+        clientData.ExclusiveAddressUse = false;
+        clientData.EnableBroadcast = true;
+        clientData.Client.Bind(ipEndPointData);
+        clientData.DontFragment = true;
+        if (showDebug) Debug.Log("BufSize: " + clientData.Client.ReceiveBufferSize);
+        AC = new System.AsyncCallback(ReceivedUDPPacket);
+        clientData.BeginReceive(AC, obj);
+        Debug.Log("UDP - Start Receiving..");
     }
 
-    // receive thread
-    private void ReceiveData()
+    void ReceivedUDPPacket(System.IAsyncResult result)
     {
+        receivedBytes = clientData.EndReceive(result, ref ipEndPointData);
+        ParsePacket();
+        clientData.BeginReceive(AC, obj);
+    } 
 
-        client = new UdpClient(port);
-        while (true)
+    void ParsePacket()
+    {
+        string s = Encoding.UTF8.GetString(receivedBytes);
+        service.OnNewPacketRecieved(s);
+    }
+
+    void OnDestroy()
+    {
+        if (clientData != null)
         {
-            try
-            {
-                // Bytes empfangen.
-                IPEndPoint anyIP = new IPEndPoint(IPAddress.Any, 0);
-                byte[] data = client.Receive(ref anyIP);
-
-                // Bytes mit der UTF8-Kodierung in das Textformat kodieren.
-                string text = Encoding.UTF8.GetString(data);
-
-                // Den abgerufenen Text anzeigen.
-                print(">> " + text);
-
-                // latest UDPpacket
-                lastReceivedUDPPacket = text;
-
-            }
-            catch (Exception err)
-            {
-                print(err.ToString());
-            }
+            clientData.Close();
         }
-    }
-
-    // getLatestUDPPacket
-    // cleans up the rest
-    public string GetLatestUDPPacket()
-    {
-        return lastReceivedUDPPacket;
     }
 }

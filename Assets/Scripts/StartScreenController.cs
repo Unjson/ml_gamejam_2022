@@ -19,8 +19,7 @@ public class StartScreenController : MonoBehaviour
     public void BuildConfig()
     {
         _networkInformation.ip = _ipInput.text;
-        _networkInformation.name = _nameInput.text;
-
+        _networkInformation.myName = _nameInput.text;
         if (NetworkService.Instance.TrySetNetworkInformation(_networkInformation))
         {
             SceneManager.LoadScene("Main");

@@ -1,4 +1,5 @@
 using medialesson.Library.Events;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -9,17 +10,21 @@ public class NetworkEvent : EventRelay<NetworkMessage>
 
 }
 
+[System.Serializable]
 public class NetworkMessage
 {
     public enum MessageType
     {
+        Hi,
+        Shake,
         Hit,
         Miss,
         Die,
         Bye
     }
     public MessageType messageType;
-    public int guid;
+    public string senderName;
+    public Guid guid = Guid.NewGuid();
     public string message;
 }
 
